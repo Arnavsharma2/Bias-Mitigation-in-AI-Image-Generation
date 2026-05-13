@@ -191,8 +191,13 @@ class DisentanglementMetrics:
         importances = clf.feature_importances_
 
         # Disentanglement: how concentrated is importance (entropy)
-        importance_dist = importances / importances.sum()
-        disentanglement = 1.0 - stats.entropy(importance_dist) / np.log(len(importances))
+        importance_sum = importances.sum()
+        if importance_sum < 1e-8:
+            importance_dist = np.ones_like(importances) / len(importances)
+        else:
+            importance_dist = importances / importance_sum
+            
+        disentanglement = 1.0 - stats.entropy(importance_dist) / np.log(len(importances) + 1e-8)
 
         # Informativeness: prediction accuracy
         y_pred = clf.predict(latents_flat)

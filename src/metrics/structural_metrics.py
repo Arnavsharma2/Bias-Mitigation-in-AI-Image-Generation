@@ -7,7 +7,6 @@ This module implements metrics for measuring preservation of:
 - Overall structure
 """
 
-import torch
 import numpy as np
 from PIL import Image
 from typing import Union, Dict, Tuple, Optional
@@ -40,6 +39,7 @@ class StructuralPreservationMetrics:
         self.device = device
         self.face_detector = None
         self.pose_estimator = None
+        self.face_mesh = None
 
     def _load_face_detector(self):
         """Load face detection model."""
@@ -85,12 +85,14 @@ class StructuralPreservationMetrics:
         if self.face_detector is None:
             return None
 
-        # Convert to numpy
+        # Convert to numpy RGB (PIL images are already RGB; MediaPipe expects RGB)
         if isinstance(img, Image.Image):
             img = np.array(img)
+        elif img.ndim == 3 and img.shape[2] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # Detect face
-        results = self.face_detector.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        results = self.face_detector.process(img)
 
         if not results.detections:
             return None
@@ -256,12 +258,14 @@ class StructuralPreservationMetrics:
         if self.face_mesh is None:
             return None
 
-        # Convert to numpy
+        # Convert to numpy RGB (PIL images are already RGB; MediaPipe expects RGB)
         if isinstance(img, Image.Image):
             img = np.array(img)
+        elif img.ndim == 3 and img.shape[2] == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # Detect face mesh
-        results = self.face_mesh.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        results = self.face_mesh.process(img)
 
         if not results.multi_face_landmarks:
             return None

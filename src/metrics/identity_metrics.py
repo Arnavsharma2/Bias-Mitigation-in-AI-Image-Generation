@@ -8,7 +8,7 @@ preserve the identity of the original person.
 import torch
 import numpy as np
 from PIL import Image
-from typing import Union, Tuple, Optional
+from typing import Union
 import warnings
 
 # Suppress warnings from face detection libraries
@@ -49,6 +49,7 @@ class IdentityPreservationMetrics:
         self.face_model = None
         self.landmark_detector = None
         self.lpips_model = None
+        self.model_type = None
 
         # Load face recognition model
         if use_arcface:
@@ -78,12 +79,16 @@ class IdentityPreservationMetrics:
         try:
             from facenet_pytorch import InceptionResnetV1, MTCNN
 
+            # FaceNet uses adaptive pooling which is unsupported on MPS — use CPU
+            facenet_device = "cpu" if self.device == "mps" else self.device
+
             self.face_model = InceptionResnetV1(pretrained="vggface2").eval()
-            self.face_model.to(self.device)
+            self.face_model.to(facenet_device)
+            self.facenet_device = facenet_device
             self.mtcnn = MTCNN(
                 image_size=160,
                 margin=0,
-                device=self.device,
+                device=facenet_device,
                 post_process=False,
             )
             self.model_type = "facenet"
@@ -204,10 +209,11 @@ class IdentityPreservationMetrics:
         if face1 is None or face2 is None:
             return 0.0  # No face detected
 
-        # Get embeddings
+        # Get embeddings (use facenet_device — may differ from self.device on MPS)
+        fd = getattr(self, "facenet_device", self.device)
         with torch.no_grad():
-            emb1 = self.face_model(face1.unsqueeze(0).to(self.device))
-            emb2 = self.face_model(face2.unsqueeze(0).to(self.device))
+            emb1 = self.face_model(face1.unsqueeze(0).to(fd))
+            emb2 = self.face_model(face2.unsqueeze(0).to(fd))
 
         # Compute cosine similarity
         similarity = torch.nn.functional.cosine_similarity(emb1, emb2)

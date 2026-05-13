@@ -7,10 +7,9 @@ that correspond to racial/phenotypic attributes.
 
 import torch
 import numpy as np
-from typing import List, Tuple, Optional, Dict
+from typing import List, Optional, Dict
 from pathlib import Path
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LogisticRegression
 
 
 class RaceVectorExtractor:
@@ -306,20 +305,24 @@ class RaceVectorExtractor:
         Returns:
             Dictionary of subvectors
         """
-        # Flatten
-        vector_flat = race_vector.flatten().cpu().numpy()
+        # Drop batch dim if present so we can treat the vector as (C, H, W)
+        v = race_vector
+        had_batch = v.dim() == 4
+        if had_batch:
+            v = v.squeeze(0)
 
-        # Apply PCA
-        pca = PCA(n_components=n_components)
-        components = pca.fit_transform(vector_flat.reshape(1, -1))
+        C, H, W = v.shape
+        # SVD of (C, H*W) gives orthogonal rank-1 components ordered by contribution
+        v_2d = v.reshape(C, -1).cpu().float().numpy()
+        U, S, Vt = np.linalg.svd(v_2d, full_matrices=False)
 
-        # Create subvector dict
-        subvectors = {}
         labels = ["primary", "secondary", "tertiary"]
-        for i in range(n_components):
-            component = pca.components_[i].reshape(race_vector.shape)
-            component = torch.from_numpy(component).to(self.device)
-            subvectors[labels[i]] = component
+        subvectors = {}
+        for i in range(min(n_components, len(S))):
+            comp = (S[i] * np.outer(U[:, i], Vt[i, :])).reshape(C, H, W)
+            if had_batch:
+                comp = comp[np.newaxis]
+            subvectors[labels[i]] = torch.from_numpy(comp).to(race_vector.dtype).to(self.device)
 
         return subvectors
 
@@ -330,7 +333,7 @@ class RaceVectorExtractor:
 
     def load_vector(self, path: Path) -> torch.Tensor:
         """Load race vector from disk."""
-        vector = torch.load(path, map_location=self.device)
+        vector = torch.load(path, map_location=self.device, weights_only=True)
         print(f"Loaded race vector from {path}")
         return vector
 

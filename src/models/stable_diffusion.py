@@ -16,9 +16,8 @@ from pathlib import Path
 from diffusers import (
     StableDiffusionXLPipeline,
     AutoencoderKL,
-    DDIMScheduler,
+    DPMSolverMultistepScheduler,
 )
-from diffusers.pipelines.stable_diffusion_xl import StableDiffusionXLPipelineOutput
 
 
 class StableDiffusionWrapper:
@@ -79,24 +78,33 @@ class StableDiffusionWrapper:
             vae=self.vae,
         )
 
-        # Optimizations
+        # DPM++ 2M Karras — significantly better quality per step than DDIM.
+        # Achieves DDIM-50-step quality in ~20 steps.
+        self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+            self.pipe.scheduler.config,
+            algorithm_type="dpmsolver++",
+            use_karras_sigmas=True,
+        )
+
+        # Memory optimizations — always enable VAE slicing (zero quality cost)
+        self.pipe.enable_vae_slicing()
+
         if enable_xformers and device == "cuda":
             try:
                 self.pipe.enable_xformers_memory_efficient_attention()
                 print("Enabled xformers memory-efficient attention")
             except Exception as e:
                 print(f"WARNING: Could not enable xformers: {e}")
+                self.pipe.enable_attention_slicing()
+        else:
+            # Attention slicing helps on MPS and CPU
+            self.pipe.enable_attention_slicing()
 
         if enable_cpu_offload:
-            self.pipe.enable_sequential_cpu_offload()
-            print("Enabled CPU offloading")
+            self.pipe.enable_model_cpu_offload()
+            print("Enabled model CPU offload")
         else:
             self.pipe.to(device)
-
-        # Use DDIM scheduler for deterministic generation
-        self.pipe.scheduler = DDIMScheduler.from_config(
-            self.pipe.scheduler.config
-        )
 
         print("Stable Diffusion loaded successfully.")
 
@@ -209,7 +217,7 @@ class StableDiffusionWrapper:
         self,
         prompt: str,
         negative_prompt: str = "",
-        num_inference_steps: int = 30,
+        num_inference_steps: int = 25,
         guidance_scale: float = 7.5,
         seed: Optional[int] = None,
         return_latent: bool = True,
@@ -273,7 +281,7 @@ class StableDiffusionWrapper:
         alpha: float,
         seed: int,
         negative_prompt: str = "",
-        num_inference_steps: int = 50,
+        num_inference_steps: int = 25,
         guidance_scale: float = 7.5,
     ) -> Tuple[Image.Image, torch.Tensor]:
         """
@@ -291,7 +299,7 @@ class StableDiffusionWrapper:
                    Values in [-5, 5] are a reasonable starting range.
             seed: RNG seed — use the same seed as the base image for consistency
             negative_prompt: Negative guidance prompt
-            num_inference_steps: Denoising steps (50 is standard)
+            num_inference_steps: Denoising steps (25 with DPM++ 2M ≈ DDIM 50)
             guidance_scale: CFG scale
 
         Returns:
@@ -353,7 +361,7 @@ class StableDiffusionWrapper:
 
     def load_latent(self, path: Union[str, Path]) -> torch.Tensor:
         """Load latent code from disk."""
-        latent = torch.load(path, map_location=self.device)
+        latent = torch.load(path, map_location=self.device, weights_only=True)
         return latent.to(self.dtype)
 
     def reconstruct_image(
@@ -437,7 +445,7 @@ class LatentCache:
     def load(self, image_id: str, device: str = "cuda") -> torch.Tensor:
         """Load latent from cache."""
         path = self.get_path(image_id)
-        return torch.load(path, map_location=device)
+        return torch.load(path, map_location=device, weights_only=True)
 
     def clear(self):
         """Clear all cached latents."""

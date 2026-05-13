@@ -1,2 +1,29 @@
 data/photos/dark_skin/*
 data/photos/light_skin/*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Experiments / generated outputs
+experiments/results/
+data/generated/
+data/embeddings/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
