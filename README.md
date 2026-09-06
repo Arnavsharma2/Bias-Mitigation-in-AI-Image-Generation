@@ -12,6 +12,15 @@ This project studies an image-colour intervention. It does **not** infer or
 change race or ethnicity, and the results do not establish general bias
 mitigation or identity preservation.
 
+## What this repository contributes
+
+- A controlled comparison of masked steering, unmasked steering, latent editing,
+  and prompt control at approximately matched image-colour change.
+- Frozen study configurations, seed-level ledgers, and an independent-seed
+  replication with a prespecified decision rule.
+- A claims-to-evidence register and executable manuscript audit linking the
+  reported conclusions to retained artifacts.
+
 ## Paper and artifacts
 
 - [Preprint PDF](output/pdf/arxiv_preprint.pdf)
@@ -23,9 +32,9 @@ mitigation or identity preservation.
 
 ## Main result
 
-The study compares spatially masked denoising-time steering with unmasked
-steering, post-hoc latent editing, and prompt-only control at approximately
-matched measured skin-tone change.
+Spatial masking reduced perceptual change in the parent experiment. The primary
+identity-preservation hypothesis was unsupported, and the independent replication
+was inconclusive because too few matched seeds remained.
 
 | Finding | Evidence-backed interpretation |
 |---|---|
